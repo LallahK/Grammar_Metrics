@@ -1,0 +1,443 @@
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.*;
+
+parser code {:
+
+    public boolean syntaxErrors;
+
+    public void syntax_error(Symbol current_token) {
+        /*report_error(
+            "Syntax error at line " + (current_token.left+1) + ", column "
+            + current_token.right, null
+        );*/
+        System.out.println("Syntax error at line " + (current_token.left+1) + ", column "
+            + (current_token.right+1));
+    }
+:};
+
+/* Preliminaries to set up and use the scanner.  */
+
+scan with   {: 
+                Symbol sy = getScanner().next_token();
+                // System.out.println("Got Symbol: " + sy);
+                return sy;
+            :}
+
+/* Terminals (tokens returned by the scanner). */
+
+terminal            SOURCE;
+terminal            FUNCTION, LPARENTH, COMMA, RPARENTH, TO;
+terminal            ALANBEGIN, END;
+terminal            BOOLEAN, INTEGER, ARRAY;
+terminal            SEMICOLON;
+terminal            RELAX;
+terminal            LBRACKET, RBRACKET, ASSIGN;
+terminal            CALL;
+terminal            REPEAT, UNTIL;
+terminal            IF, ELSE, ELSIF, THEN;
+terminal            GET, LEAVE, PUT, STOP;
+terminal            WHILE, DO;
+terminal            EQ, GE, GT, LT, LE, NE;
+terminal            MINUS, PLUS;
+terminal            AND, FSLASH, ASTERIX, REM;
+terminal            OR, NOT, TRUE, FALSE;
+
+terminal Integer    NUMB;
+terminal String     IDENT;
+terminal String     STRING;
+
+/* Non terminals */
+
+nonterminal Source     source;
+nonterminal FuncDefList    funcdefs;
+nonterminal Body        body;
+nonterminal Vars        typedefs;
+nonterminal Vars        typedef;
+nonterminal Vars        type;
+nonterminal Vars        vardefs;
+nonterminal Vars        vardef;
+nonterminal Vars        vars;
+nonterminal Statements    statements; 
+nonterminal Statements    statementlist; 
+nonterminal Stats       statement;
+nonterminal Stats       repeat;
+nonterminal Stats       assign; 
+nonterminal Expr        arrayindex; 
+nonterminal Expr        assignval;
+nonterminal Stats       call;
+nonterminal Stats       alan_if;
+nonterminal Elsifs         elsifs;
+nonterminal Stats       input;
+nonterminal Stats       leave;
+nonterminal Stats       output;
+nonterminal Expressions outputvals;
+nonterminal Expr        outputval;
+nonterminal Stats       alan_while;
+nonterminal Expressions exprs;
+nonterminal Expression  expr;
+nonterminal Expr        relop;
+nonterminal Expressions simple;
+nonterminal Expr        addop;
+nonterminal Expressions additions;
+nonterminal Expressions term;
+nonterminal Expr        mulop;
+nonterminal Expr        factor;
+
+/* Precedences */
+
+start with source;
+
+/* The grammar */
+
+
+// =======================================================================
+// <source> = "source" <id> {<funcdef>} <body>
+// =======================================================================
+source::= 
+    SOURCE IDENT:i funcdefs:f body:b {:
+
+        RESULT = new Source(new LitVar(i), f, b);
+
+                                :}
+    ;
+
+// =======================================================================
+// <funcdef> = "function" <id> "(" <typedefs> ")" ["to" <type>] <body>
+// =======================================================================
+funcdefs::=
+    funcdefs:fs FUNCTION IDENT:i LPARENTH typedefs:ts RPARENTH TO type:t body:b {:
+                                   fs.add(new FuncDef(new LitVar(i), ts, t, b));
+                                   RESULT = fs;
+                                :}
+    | funcdefs:fs FUNCTION IDENT:i LPARENTH typedefs:ts RPARENTH body:b {:
+                                   fs.add(new FuncDef(new LitVar(i), ts, null, b));
+                                   RESULT = fs;
+                                :}
+    | funcdefs:fs FUNCTION IDENT:i LPARENTH RPARENTH TO type:t body:b {:
+                                   fs.add(new FuncDef(new LitVar(i), null, t, b));
+                                   RESULT = fs;
+                                :}
+    | funcdefs:fs FUNCTION IDENT:i LPARENTH RPARENTH body:b {:
+                                   fs.add(new FuncDef(new LitVar(i), null, null, b));
+                                   RESULT = fs;
+                                :}
+    |                           {: RESULT = new FuncDefList(); :}
+    ;
+
+// =======================================================================
+// <body> = "begin" <vardefs> <statements> "end"
+// =======================================================================
+body::=
+    ALANBEGIN vardefs:v statements:s END {: RESULT = new Body(v, s); :}
+    ;
+
+// =======================================================================
+// <typedefs> = [<typedefs> "," <typedef>]
+// =======================================================================
+typedefs::=
+    typedefs:ts COMMA typedef:t {: ts.add(t);
+                                   RESULT = ts;
+                                :}
+    | typedef:t                 {: RESULT = new TypeDefs(t); :}
+    ;
+
+// =======================================================================
+// <typedef> = <type> <ID>
+// =======================================================================
+typedef::=
+    type:t IDENT:i              {: RESULT = new TypeDef(t, new LitVar(i)); :}
+    ;
+
+// =======================================================================
+// <type> = ( "boolean" | "integer" ) [ "array" ]
+// =======================================================================
+type::=
+    BOOLEAN                     {: RESULT = new LitVar("boolean"); :}
+    | INTEGER                   {: RESULT = new LitVar("integer"); :}
+    | BOOLEAN ARRAY             {: RESULT = new LitVar("boolean array"); :}
+    | INTEGER ARRAY             {: RESULT = new LitVar("integer array"); :}
+    ;
+
+// =======================================================================
+// <vardefs> = [<vardefs> <vardef>]
+// =======================================================================
+vardefs::=
+    vardefs:vs vardef:v         {: vs.add(v);
+                                   RESULT = vs;
+                                :}
+    |                           {: RESULT = new VarDefs(); :}
+    ;
+
+// =======================================================================
+// <vardef> = <type> <vars> ";"
+// =======================================================================
+vardef::=
+    type:t vars:v SEMICOLON     {: RESULT = new VarDef(t, v); :}
+    ;
+
+// =======================================================================
+// <vars> = [<vars> "," IDENT]
+// =======================================================================
+vars::=
+    vars:v COMMA IDENT:i        {: v.add(new LitVar(i));
+                                   RESULT = v;
+                                :}
+    | IDENT:i                   {: Variables lv = new Variables();
+                                   lv.add(new LitVar(i));
+                                   RESULT = lv; :}
+    ;
+
+// =======================================================================
+// <statements> = "relax" | <statement> <statementlist>
+// =======================================================================
+statements::=
+    RELAX                       {: RESULT = new Statements(); :}
+    | statementlist:s           {: RESULT = s; :}
+    ;
+
+// =======================================================================
+// <statementlist> = [<statementlist> ";" <statement>]
+// =======================================================================
+statementlist::=
+    statementlist:sl SEMICOLON statement:s {:
+                                   sl.add(s);
+                                   RESULT = sl;
+                                :}
+    | statement:s               {: Statements sl = new Statements(); 
+                                   sl.add(s);
+                                   RESULT = sl;
+                                :}
+    ;
+
+// =======================================================================
+// <statement> = <assign> | <call> | <if> | <input> | <leave> | 
+//               <output> | <while>
+// =======================================================================
+statement::=
+    assign:s                    {: RESULT = s; :}
+    | call:s                    {: RESULT = s; :}
+    | alan_if:s                 {: RESULT = s; :}
+    | input:s                   {: RESULT = s; :}
+    | leave:s                   {: RESULT = s; :}
+    | output:s                  {: RESULT = s; :}
+    | alan_while:s              {: RESULT = s; :}
+    | repeat:s                  {: RESULT = s; :}
+    ;
+
+// =======================================================================
+// <repeat> = "repeat" <statements> "until" <expr>
+// =======================================================================
+repeat::=
+    REPEAT statements:s UNTIL expr:e    {: RESULT = new Repeat(s, e); :}
+    ;
+
+// =======================================================================
+// <assign> = IDENT <arrayindex> ":=" <assignval>
+// =======================================================================
+assign::=
+    IDENT:s ASSIGN assignval:a  {: RESULT = new Assign(new LitExpr(s), a); :}
+    | IDENT:s arrayindex:i ASSIGN assignval:a {:
+                                   RESULT = new Assign(new AssignExpr(
+                                   new LitExpr(s), i), a);
+                                :}
+    ;
+
+// =======================================================================
+// "call" IDENT "(" <exprs> ")"
+// =======================================================================
+call::=
+    CALL IDENT:s LPARENTH exprs:e RPARENTH  {: RESULT = new Call(new LitExpr(s), e); :}
+    | CALL IDENT:s LPARENTH RPARENTH        {: RESULT = new Call(new LitExpr(s), null); :}
+    ;
+
+// =======================================================================
+// <if> = "if" <expr> "then" <statements> <elsifs> <else> "end"
+// =======================================================================
+alan_if::=
+    IF expr:e THEN statements:s1 elsifs:el ELSE statements:s2 END {:
+                                   RESULT = new If(e, s1, el, s2);
+                                :}
+    | IF expr:e THEN statements:s elsifs:el END {:
+                                   RESULT = new If(e, s, el, null); 
+                                :}
+    ;
+
+// =======================================================================
+// <elsifs> = [<elsifs> "elsif" <expr> "then" <statements>]
+// =======================================================================
+elsifs::=
+    elsifs:el ELSIF expr:e THEN statements:s {: el.add(e, s);
+                                                RESULT = el;
+                                             :}
+    |                           {: RESULT = new Elsifs(); :}
+    ;
+
+// =======================================================================
+// <input> = "get" IDENT <arrayindex>
+// =======================================================================
+input::=
+    GET IDENT:s arrayindex:a    {: RESULT = new Input(new AssignExpr(
+                                  new LitExpr(s), a)); :}
+    | GET IDENT:s               {: RESULT = new Input(new LitExpr(s)); :}
+    ;
+
+// =======================================================================
+// <leave> = "leave" <exp>
+// =======================================================================
+leave::=
+    LEAVE expr:e                {: RESULT = new Leave(e); :}
+    | LEAVE                     {: RESULT = new Leave(null); :}
+    ;
+
+// =======================================================================
+// <output> = "put" <exp>
+// =======================================================================
+output::=
+    PUT outputvals:o            {: RESULT = new Output(o); :}
+    ;
+
+// =======================================================================
+// <outputvals> = [<outputvals> "." outputval]
+// =======================================================================
+outputvals::=
+    outputvals:os STOP outputval:o  {: os.add(o);
+                                       RESULT = os;
+                                    :} 
+    | outputval:f                   {: Expressions e = new Expressions(" ."); 
+                                       e.add(f);
+                                       RESULT = e;
+                                    :}
+    ;
+
+// =======================================================================
+// <outputval> = <string> | <expr>
+// =======================================================================
+outputval::=
+    STRING:s                    {: RESULT = new LitExpr(s); :}
+    | expr:e                    {: RESULT = e; :}
+    ;
+
+// =======================================================================
+// <while> = "while" <expr> "do" <statements> "end"
+// =======================================================================
+alan_while::=
+    WHILE expr:e DO statements:s END    {: RESULT = new While(e, s); :}
+    ;
+
+// =======================================================================
+// <exprs> = [<exprs> "," <expr>]
+// =======================================================================
+exprs::=
+    exprs:es COMMA expr:e       {: es.add(e);
+                                   RESULT = es;
+                                :}  
+    | expr:f                    {: Expressions e = new Expressions(","); 
+                                   e.add(f);
+                                   RESULT = e;
+                                :}
+    ;
+
+// =======================================================================
+// <expr> = <simple> <exprconcat>
+// =======================================================================
+expr::=
+    simple:s1 relop:o simple:s2 {: RESULT = new Expression(s1, o, s2); :}
+    | simple:s                  {: RESULT = new Expression(s); :}
+    ;
+
+// =======================================================================
+// <relop> = "=" | ">=" | ">" | "<=" | "<" | "<>"
+// =======================================================================
+relop::=
+    EQ                          {: RESULT = new OpExpr("="); :}
+    | GE                        {: RESULT = new OpExpr(">="); :} 
+    | GT                        {: RESULT = new OpExpr(">"); :} 
+    | LE                        {: RESULT = new OpExpr("<="); :} 
+    | LT                        {: RESULT = new OpExpr("<"); :} 
+    | NE                        {: RESULT = new OpExpr("<>"); :}
+    ;
+
+// =======================================================================
+// <simple> = ["-"] <minus> <term> {<addop> <term>}
+// =======================================================================
+simple::=
+    MINUS additions:e           {: e.add(0, new LitExpr("-")); RESULT = e; :}
+    | additions:e               {: RESULT = e; :}
+    ;
+
+// =======================================================================
+// <addop> = "-" | "or" | "+"
+// =======================================================================
+addop::=
+    MINUS                       {: RESULT = new OpExpr("-"); :}
+    | OR                        {: RESULT = new OpExpr("or"); :}
+    | PLUS                      {: RESULT = new OpExpr("+"); :}
+    ;
+
+// =======================================================================
+// <additions> = <additions> <addop> <term>
+// =======================================================================
+additions::=
+    additions:e addop:o term:t  {: e.add(o); e.add(t);
+                                   RESULT = e;
+                                :}
+    | term:f                    {: Expressions e = new Expressions(""); 
+                                   e.add(f);
+                                   RESULT = e;
+                                :}
+    ;
+
+// =======================================================================
+// <term> = <factor> <multiplications>
+// =======================================================================
+
+term::=
+    term:e mulop:o factor:f     {: e.add(o); e.add(f);
+                                   RESULT = e;
+                                :}  
+    | factor:f                  {: Expressions e = new Expressions(""); 
+                                   e.add(f);
+                                   RESULT = e;
+                                :}
+    ;
+
+// =======================================================================
+// <mulop> = "and" | "/" | "*" | "rem"
+// =======================================================================
+mulop::=
+    AND                         {: RESULT = new OpExpr("and"); :}
+    | FSLASH                    {: RESULT = new OpExpr("/"); :}
+    | ASTERIX                   {: RESULT = new OpExpr("*"); :}
+    | REM                       {: RESULT = new OpExpr("rem"); :}
+    ;
+
+// =======================================================================
+// <factor> = IDENT <factorid> | <num> | "(" <expr> ")" | "not" <factor> | 
+//              "true" | "false"
+// =======================================================================
+factor::=
+    IDENT:i                     {: RESULT = new LitExpr(i); :}
+    | IDENT:i arrayindex:a      {: RESULT = new AssignExpr(new LitExpr(i), a); :}
+    | IDENT:i LPARENTH exprs:e RPARENTH {: RESULT = new ParenthExpr(new LitExpr(i), e); :}
+    | NUMB:n                    {: RESULT = new LitExpr(n); :}
+    | LPARENTH expr:e RPARENTH  {: RESULT = new BrackExpr(e); :}
+    | NOT factor:f              {: RESULT = new NotExpr(f); :}
+    | TRUE:t                    {: RESULT = new LitExpr("true"); :}
+    | FALSE:f                   {: RESULT = new LitExpr("false"); :}
+    ;
+
+// =======================================================================
+// <assignval> = <expr> | "array" <simple>
+// =======================================================================
+assignval::=
+    expr:e                      {: RESULT = e; :}
+    | ARRAY simple:s            {: RESULT = new ArrayExpr(s); :}
+    ;
+
+// =======================================================================
+// <arrayindex> = ["[" <simple> "]"]
+// =======================================================================
+arrayindex::=
+    LBRACKET simple:s RBRACKET  {: RESULT = s; :}
+    ;

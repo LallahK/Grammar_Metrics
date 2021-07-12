@@ -1,0 +1,169 @@
+package CUP;
+
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.*;
+
+parser code {:
+
+    public void syntax_error(Symbol current_token) {
+        System.out.println("Syntax error at line " + (current_token.left+1) + ", column "
+            + (current_token.right+1));
+    }
+    
+:};
+
+scan with   {: 
+                Symbol sy = getScanner().next_token();
+                return sy;
+            :}
+
+terminal      PACKAGE;
+terminal      SEMI;
+terminal      IMPORT;
+terminal      ACTION;
+terminal      CODE;
+terminal      CODE_STRING;
+terminal      PARSER;
+terminal      INIT;
+terminal      WITH;
+terminal      SCAN;
+terminal      TERMINAL;
+terminal	  NONTERMINAL;
+terminal      COMMA;
+terminal      PRECEDENCE;
+terminal      LEFT;
+terminal	  RIGHT;
+terminal      START;
+terminal      CC_EQUALS;
+terminal      BAR;
+terminal      PERCENT_PREC;
+terminal      COLON;
+terminal      DOT;
+terminal      STAR;
+terminal 	  NONASSOC;
+
+terminal    String  ID;
+
+nonterminal CUPGrammar java_cup_spec;
+nonterminal   package_spec;
+nonterminal   import_list;
+nonterminal   import_spec;
+nonterminal   code_part;
+nonterminal   code_parts;
+nonterminal   action_code_part;
+nonterminal   parser_code_part;
+nonterminal   init_code;
+nonterminal   scan_code;
+nonterminal CUPAtomList symbol_list;
+nonterminal CUPAtomList symbol;
+nonterminal CUPAtomList term_name_list;
+nonterminal CUPAtomList non_term_name_list;
+nonterminal CUPAtomList declares_term;
+nonterminal CUPAtomList declares_non_term;
+nonterminal   precedence_list;
+nonterminal   preced;
+nonterminal   terminal_list;
+nonterminal   start_spec;
+nonterminal CUPProductionList   production_list;
+nonterminal CUPProduc       production;
+nonterminal CUPAlternate        rhs_list;
+nonterminal CUPConcat           rhs;
+nonterminal CUPConcat           prod_part_list;
+nonterminal String              prod_part;
+nonterminal   opt_label;
+nonterminal   multipart_id;
+nonterminal   import_id;
+nonterminal   type_id;
+nonterminal   opt_semi;
+
+start with java_cup_spec;
+
+java_cup_spec      ::= package_spec import_list code_parts 
+		                symbol_list:sl precedence_list start_spec 
+		                production_list:pl {:
+                            RESULT = new CUPGrammar(sl, pl);
+                       :};
+package_spec       ::= PACKAGE multipart_id SEMI | ;
+import_list        ::= import_list import_spec | ;
+import_spec        ::= IMPORT import_id SEMI;
+code_part          ::= action_code_part | parser_code_part |
+                       init_code | scan_code;
+code_parts         ::= code_parts code_part | ;
+action_code_part   ::= ACTION CODE CODE_STRING opt_semi;
+parser_code_part   ::= PARSER CODE CODE_STRING opt_semi;
+init_code          ::= INIT WITH CODE_STRING opt_semi;
+scan_code          ::= SCAN WITH CODE_STRING opt_semi;
+symbol_list        ::= symbol_list:list symbol:l {:
+                            list.addList(l);
+                            RESULT = list;
+                      :}
+                      | symbol:list {:
+                            RESULT = list;
+                      :};
+symbol             ::= TERMINAL type_id declares_term:list {: RESULT = list; :} |
+                       NONTERMINAL type_id declares_non_term:list {: RESULT = list; :} |
+		       		   TERMINAL declares_term:list {: RESULT = list; :} |
+		       		   NONTERMINAL declares_non_term:list {: RESULT = list; :};
+term_name_list     ::= term_name_list:list COMMA ID:t {:
+                            list.add(new CUPTerminal(t));
+                            RESULT = list;
+                       :}
+                       | ID:t {:
+                            CUPAtomList list = new CUPAtomList();
+                            list.add(new CUPTerminal(t));
+                            RESULT = list;
+                       :};
+non_term_name_list ::= non_term_name_list:list COMMA ID:t {:
+                            list.add(new CUPNonTerminal(t));
+                            RESULT = list;
+                       :}
+	               	   | ID:t {:
+                            CUPAtomList list = new CUPAtomList();
+                            list.add(new CUPNonTerminal(t));
+                            RESULT = list;
+                       :};
+declares_term      ::= term_name_list:list SEMI {: RESULT = list; :};
+declares_non_term  ::= non_term_name_list:list SEMI {: RESULT = list; :};
+precedence_list    ::= precedence_list preced | ;
+preced             ::= PRECEDENCE LEFT terminal_list SEMI
+	               	   | PRECEDENCE RIGHT terminal_list SEMI
+	               	   | PRECEDENCE NONASSOC terminal_list SEMI;
+terminal_list      ::= terminal_list COMMA ID | ID; 
+start_spec         ::= START WITH ID SEMI | ;
+production_list    ::= production_list:pl production:p {:
+                            pl.add(p);
+                            RESULT = pl;
+                       :}
+                       | production:p {:
+                            CUPProductionList pl = new CUPProductionList();
+                            pl.add(p);
+                            RESULT = pl;
+                       :};
+production         ::= ID:n CC_EQUALS rhs_list:a SEMI{:
+                            RESULT = new CUPProduc(n, a);
+                       :};
+rhs_list           ::= rhs_list:l BAR rhs:r {:
+                            l.add(r);
+                            RESULT = l;
+                       :}
+                       | rhs:r {:
+                            RESULT = new CUPAlternate(r);
+                       :};
+rhs                ::= prod_part_list:l PERCENT_PREC ID {: RESULT = l; :}
+                       | prod_part_list:l {: RESULT = l; :};
+prod_part_list     ::= prod_part_list:l prod_part:p {:
+                            if (p != null) {
+                                l.add(p);
+                            }
+                            RESULT = l;
+                       :}
+                       | {:
+                            RESULT = new CUPConcat();
+                       :};
+prod_part          ::= ID:id opt_label {: RESULT=id; :} | CODE_STRING;
+opt_label          ::= COLON ID | ;
+multipart_id       ::= multipart_id DOT ID | ID;
+import_id          ::= multipart_id DOT STAR | multipart_id;
+type_id            ::= multipart_id;
+opt_semi           ::= SEMI | ;
