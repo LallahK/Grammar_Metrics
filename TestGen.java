@@ -64,9 +64,11 @@ public class TestGen {
 
         reachable();
 
-        for (int i = 0; i < 160; i++) {
+        for (int i = 0; i < 5; i++) {
             analysis.metrics();
-            switch (roulette(ratios)) {
+
+            int choice = roulette(ratios);
+            switch (choice) {
                 case 0: genInsert();
                     break;
                 case 1: genEdit();
@@ -78,7 +80,7 @@ public class TestGen {
             }
         }
 
-        for (Operation op: operations) System.out.println(op);
+        // for (Operation op: operations) System.out.println(op);
     }
 
     private void genInsert() {
@@ -145,11 +147,72 @@ public class TestGen {
     }
 
     private void genEdit() {
-        boolean edited;
-        int index = random.nextInt(grammar.productions.size());
-        Production p = grammar.productions.get(index);
+        double choice = random.nextDouble();
 
+        if (choice < 1) {
+            analysis.recursion();
+            editUnRecursion();
+        } else if (choice < 0.25) {
+            editRecursion();
+        } else if (choice < 0.7) {
+            editSemi();
+        } else if (choice < 0.85) {
+            editFull();
+        } else {
+            editEmpty();
+        }
+    }
+
+    private void editUnRecursion() {
+        boolean left = false;
+        ArrayList<NonTerminal> recursive = new ArrayList<>();
+        for (NonTerminal nt: grammar.nonTerminals) {
+            if (nt.rrecursive || nt.lrecursive) recursive.add(nt);
+        } 
+
+        if (recursive.size() == 0) return;
+
+        int index = random.nextInt(recursive.size());
+        NonTerminal nt = recursive.get(index);
+
+        Production rec = null;
+        for (Production p: nt.productions) {
+            if (p.rules.size() == 0) continue;
+
+            Symbol s = p.rules.get(0);
+            if (s.getType() == 0) {
+                if (s.equals(nt)) rec = p;
+                left = true;
+            }
+            s = p.rules.get(p.rules.size() - 1);
+            if (s.getType() == 0) if (s.equals(nt)) rec = p;
+        }
+
+        if (left) {
+
+        } else {
+            
+        }
+    }
+
+    private void editRecursion() {
+
+    }
+
+    private void editSemi() {
+
+    }
+
+    private void editFull() {
         
+    }
+
+    private void editEmpty() {
+
+    }
+
+    private void addProductionRule(Production p, NonTerminal n) {
+
     }
 
     private void genRemove() {
@@ -163,10 +226,12 @@ public class TestGen {
 
                 deleteProduction(p);
 
-                operations.add(new Operation(p.index));
+                operations.add(new Operation(p.index + 1));
                 return;
             }
         }
+
+        analysis.derivableSet();
 
         ArrayList<Production> candidates = new ArrayList<>();
         ArrayList<Production> delete = new ArrayList<>();
@@ -178,11 +243,15 @@ public class TestGen {
         }
 
         for (Production p: candidates) {
-            grammar.productions.remove(p.index);
+            grammar.removeProductionDep(p);
+            p.nt.productions.remove(p);
 
-            if (deletable()) delete.add(p);
+            if (deletable(p)) {
+                delete.add(p);
+            }
 
-            grammar.productions.add(p.index, p);
+            p.nt.productions.add(p);
+            grammar.addProductionDep(p);
         }
 
         if (delete.size() <= 0) return;
@@ -192,7 +261,14 @@ public class TestGen {
 
         deleteProduction(d);
 
-        operations.add(new Operation(d.index));
+        reachable = reachable();
+        for (int i = 1; i < size; i++) {
+            if (!reachable[0][i]) {
+                System.out.println("FOK");
+            }
+        }
+
+        operations.add(new Operation(d.index + 1));
     }
 
     private void deleteProduction(Production p) {
@@ -217,16 +293,97 @@ public class TestGen {
         }
     }
 
-    private boolean deletable() {
-        boolean delete = true;
-        boolean[][] reachable = reachable();
+    private boolean deletable(Production p) {
         int size = grammar.nonTerminals.size();
+        boolean[] visited = new boolean[size];
 
-        for (int i = 1; i < grammar.nonTerminals.size(); i++) {
-            if (!reachable[0][i] || !reachable[i][size]) delete = false;
+        visit(grammar.first, visited);
+
+        for (int i = 1; i < size; i++) {
+            if (!visited[i]) return false;
         }
 
-        return delete;
+        for (NonTerminal nt: grammar.nonTerminals) nt.oldDerivable = nt.derivable;
+
+        if (!removeDerivable(p)) return false;
+
+        for (NonTerminal nt: grammar.nonTerminals) nt.derivable = nt.oldDerivable;
+
+        return true;
+    }
+
+    private void visit(NonTerminal nt, boolean[] visited) {
+        visited[nt.index] = true;
+
+        for (Production p: nt.productions) {
+            for (Symbol s: p.rules) {
+                if (s.getType() == 0) {
+                    NonTerminal n = (NonTerminal) s;
+                    if (!visited[n.index]) visit(n, visited);
+                }
+            }
+        }
+    }
+
+    private boolean removeDerivable(Production p) {
+        NonTerminal nt = p.nt;
+
+        if (isDerivable(nt)) return true;
+
+        rippleNonDerivable(nt);
+        rippleDerivable(nt);
+
+        for (NonTerminal n: grammar.nonTerminals) {
+            if (!n.derivable) return false;
+        }
+
+        return true;
+    }
+
+    private void rippleNonDerivable(NonTerminal nt) {
+        for (NonTerminal n: nt.dependency) {
+            if (!n.derivable) continue;
+
+            n.derivable = false;
+
+            if (isDerivable(n)) {
+                n.derivable = true;
+                continue;
+            }
+
+            rippleNonDerivable(n);
+        }
+    }
+
+    private void rippleDerivable(NonTerminal nt) {
+        for (NonTerminal n: nt.dependency) {
+            boolean derivable = n.derivable;
+            boolean nderivable = isDerivable(n);
+
+            if (derivable ^ nderivable) {
+                n.derivable = nderivable;
+                rippleDerivable(n);
+            }
+        }
+    }
+
+    private boolean isDerivable(NonTerminal nt) {
+        for (Production p: nt.productions) {
+            boolean derivable = true;
+            for (Symbol s: p.rules) {
+                if (s.getType() == 0) {
+                    NonTerminal t = (NonTerminal) s;
+                    if (!t.derivable) {
+                        derivable = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!derivable) return false;
+        }
+
+        return true;
     }
 
     private boolean[][] reachable() {

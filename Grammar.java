@@ -64,6 +64,27 @@ class Grammar {
         productions.add(p);
     }
 
+    public void removeProductionDep(Production p) {
+        for (Symbol s: p.rules) {
+            if (s.getType() == 0) {
+                NonTerminal nt = (NonTerminal) s;
+                nt.removeDependency(p.nt);
+            }
+        }
+
+        this.productions.remove(p);
+    }
+
+    public void addProductionDep(Production p) {
+        for (Symbol s: p.rules) {
+            if (s.getType() == 0) {
+                NonTerminal nt = (NonTerminal) s;
+                nt.addDependency(p.nt);
+            }
+        }
+        this.productions.add(p);
+    }
+
     public void addTerminal(Terminal t) {
         t.index = terminals.size();
         terminals.add(t);
@@ -166,6 +187,10 @@ class Production {
     }
 
     public void addRule(Symbol t) {
+        if (t.getType() == 0) {
+            NonTerminal n = (NonTerminal) t;
+            n.addDependency(nt);
+        }
         rules.add(t);
     }
 
@@ -201,6 +226,10 @@ class NonTerminal extends Symbol {
 
     private static int terms;
 
+    public ArrayList<NonTerminal> dependency;
+    public boolean derivable = false;
+    public boolean oldDerivable = false;
+
     private ArrayList<ArrayList<Symbol>> sets;
     public ArrayList<Terminal> follow;
     public ArrayList<Terminal> first;
@@ -213,6 +242,8 @@ class NonTerminal extends Symbol {
 
     public NonTerminal(String literal) {
         this.literal = literal;
+
+        this.dependency = new ArrayList<>();
 
         this.productions = new ArrayList<Production>();
         this.nullable = false;
@@ -229,6 +260,14 @@ class NonTerminal extends Symbol {
         for (int i = 0; i < Set.values().length; i++) {
             this.sets.add(new ArrayList<Symbol>());
         }
+    }
+
+    public void addDependency(NonTerminal nt) {
+        if (dependency.indexOf(nt) == -1) this.dependency.add(nt);
+    }
+
+    public void removeDependency(NonTerminal nt) {
+        this.dependency.remove(nt);
     }
 
     public void addProduction(Production p) {

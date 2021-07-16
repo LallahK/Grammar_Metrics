@@ -184,7 +184,9 @@ class CUPConverter extends Converter {
                 if (nt == null) {
                     t = grammar.getTerminal(s);
                     newP.addRule(t);
-                } else newP.addRule(nt);
+                } else {
+                    newP.addRule(nt);
+                }
             }
 
             grammar.addProduction(newP);

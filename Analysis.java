@@ -12,52 +12,52 @@ public class Analysis {
     }
 
     private void strip() {
-        int size = grammar.nonTerminals.size();
-        boolean[][] dists = new boolean[size][size];
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                dists[i][j] = false;
-            }
-        }
-
-        for (Production p: grammar.productions) {
-            NonTerminal a = p.nt;
-            for (Symbol s: p.rules) {
-                if (s.getType() == 0) {
-                    NonTerminal b = (NonTerminal) s;
-                    dists[a.index][b.index] = true;
-                }
-            }
-        }
-
-        for (int k = 0; k < size; k++) {
-            for (int i = 0; i < size; i++) {
-                for (int j = 0; j < size; j++) {
-                    if (dists[i][k] && dists[k][j]) {
-                        dists[i][j] = true;
-                    }
-                }
-            }
-        }
-
-        NonTerminal nt;
         boolean removed = false;
+        int size = grammar.nonTerminals.size();
+        boolean[] visited = new boolean[size];
+        NonTerminal nt;
+        int count = 0;
+
+        for (int i = 0; i < size; i++) visited[i] = false;
+
+        visit(grammar.first, visited);
+
+        System.out.println();
 
         for (int i = 1; i < size; i++) {
-            if (dists[0][i]) continue;
-            
-            nt = grammar.nonTerminals.get(i);
-            for (Production p: nt.productions) {
-                grammar.productions.remove(p);
+            if (!visited[i]) {
+                nt = grammar.nonTerminals.get(i - count);
+                for (Production p: nt.productions) {
+                    grammar.productions.remove(p);
+                }
+                grammar.nonTerminals.remove(nt);
+                removed = true;
+                count++;
             }
-            grammar.nonTerminals.remove(nt);
-            removed = true;
         }
 
         if (removed) {
             for (int i = 0; i < grammar.nonTerminals.size(); i++) {
                 nt = grammar.nonTerminals.get(i);
                 nt.index = i;
+            }
+
+            for (int i = 0; i < grammar.productions.size(); i++) {
+                grammar.productions.get(i).index = i;
+            }
+        }
+    }
+
+    private void visit(NonTerminal nt, boolean[] visited) {
+        visited[nt.index] = true;
+
+        for (Production p: nt.productions) {
+            for (Symbol s: p.rules) {
+                if (s.getType() == 0) {
+                    NonTerminal n = (NonTerminal) s;
+
+                    if (!visited[n.index]) visit(n, visited);
+                }
             }
         }
     }
@@ -202,6 +202,33 @@ public class Analysis {
                 }
             }
         }
+    }
+
+    public void derivableSet() {
+        boolean change = true;
+
+        while (change) {
+            change = false;
+            for (Production p: grammar.productions) {
+                NonTerminal nt = p.nt;
+
+                if (!nt.derivable && isDerivable(p)) {
+                    nt.derivable = true;
+                    change = true;
+                }
+            }
+        }
+    }
+
+    private boolean isDerivable(Production p) {
+        for (Symbol s: p.rules) {
+            if (s.getType() == 0) {
+                NonTerminal t = (NonTerminal) s;
+                if (!t.derivable) return false;
+            }
+        }
+
+        return true;
     }
 
     public void depth() {
