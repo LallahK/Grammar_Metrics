@@ -34,8 +34,7 @@ class AntlrConverter extends Converter {
 
         for (Term.Production p: productions) {
             String literal = p.getLHS().literal;
-            int index = grammar.nonTerminals.size();
-            NonTerminal nt = new NonTerminal(literal, index);
+            NonTerminal nt = new NonTerminal(literal);
             grammar.addNonTerminal(nt);
             if (first) {
                 first = false;
@@ -78,8 +77,7 @@ class AntlrConverter extends Converter {
         String literal = t;
         Terminal term = grammar.getTerminal(literal);
         if (term == null) {
-            int index = grammar.terminals.size();
-            term = new Terminal(literal, index);
+            term = new Terminal(literal);
             grammar.addTerminal(term);
         }
 
@@ -105,8 +103,7 @@ class AntlrConverter extends Converter {
     public void convertGroup(NonTerminal nt, Production p, Alternate a, int option) {
         String literal = nt.literal + "Group" + Character.toString((char) (65 + nt.groups));
         nt.groups++;
-        int index = grammar.nonTerminals.size();
-        NonTerminal term = new NonTerminal(literal, index);
+        NonTerminal term = new NonTerminal(literal);
         grammar.addNonTerminal(term);
 
         if (option > 0) {
@@ -128,8 +125,7 @@ class AntlrConverter extends Converter {
 
         NonTerminal newTerm = grammar.getNonTerminal(literal);
         if (newTerm == null) {
-            int index = grammar.nonTerminals.size();
-            newTerm = new NonTerminal(literal, index);
+            newTerm = new NonTerminal(literal);
             grammar.addNonTerminal(newTerm);
 
             Production pr = new Production(newTerm);
@@ -167,12 +163,10 @@ class CUPConverter extends Converter {
 
     public void addTerms() {
         for (CUPTerminal t: cupGrammar.terminals) {
-            int index = grammar.terminals.size();
-            grammar.addTerminal(new Terminal(t.literal, index));
+            grammar.addTerminal(new Terminal(t.literal));
         }
         for (CUPNonTerminal t: cupGrammar.nonterminals) {
-            int index = grammar.nonTerminals.size();
-            grammar.addNonTerminal(new NonTerminal(t.literal, index));
+            grammar.addNonTerminal(new NonTerminal(t.literal));
         }
     }
 
@@ -214,8 +208,7 @@ class JavaCCConverter extends Converter {
 
         for (CCProduction p: productions) {
             String literal = p.getLHS();
-            int index = grammar.nonTerminals.size();
-            NonTerminal nt = new NonTerminal(literal, index);
+            NonTerminal nt = new NonTerminal(literal);
             grammar.addNonTerminal(nt);
             if (first) {
                 first = false;
@@ -244,13 +237,12 @@ class JavaCCConverter extends Converter {
 
             if (a.getType() == 1) {
                 CCTerminal ct = (CCTerminal) a;
-                NonTerminal t = new NonTerminal(ct.literal, 0);
+                NonTerminal t = new NonTerminal(ct.literal);
                 if (grammar.nonTerminals.indexOf(t) == -1) {
                     Terminal o = grammar.getTerminal(ct.literal);
 
                     if (o == null) {
-                        int index = grammar.terminals.size();
-                        o = new Terminal(ct.literal, index);
+                        o = new Terminal(ct.literal);
                         grammar.addTerminal(o);
                     }
                     convertTerminal(p, o.literal, a.option);
@@ -269,8 +261,7 @@ class JavaCCConverter extends Converter {
         String literal = t;
         Terminal term = grammar.getTerminal(literal);
         if (term == null) {
-            int index = grammar.terminals.size();
-            term = new Terminal(literal, index);
+            term = new Terminal(literal);
             grammar.addTerminal(term);
         }
 
@@ -295,8 +286,7 @@ class JavaCCConverter extends Converter {
     public void convertGroup(NonTerminal nt, Production p, CCAlternate a, int option) {
         String literal = nt.literal + "Group" + Character.toString((char) (65 + nt.groups));
         nt.groups++;
-        int index = grammar.nonTerminals.size();
-        NonTerminal term = new NonTerminal(literal, index);
+        NonTerminal term = new NonTerminal(literal);
         grammar.addNonTerminal(term);
 
         if (option > 0) {
@@ -317,8 +307,7 @@ class JavaCCConverter extends Converter {
 
         NonTerminal newTerm = grammar.getNonTerminal(literal);
         if (newTerm == null) {
-            int index = grammar.nonTerminals.size();
-            newTerm = new NonTerminal(literal, index);
+            newTerm = new NonTerminal(literal);
             grammar.addNonTerminal(newTerm);
 
             Production pr = new Production(newTerm);

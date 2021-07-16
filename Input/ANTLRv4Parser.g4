@@ -90,11 +90,6 @@ delegateGrammars
    : IMPORT delegateGrammar (COMMA delegateGrammar)* SEMI
    ;
 
-delegateGrammarList
-   : COMMA delegateGrammar delegateGrammarList
-   |
-   ;
-
 delegateGrammar
    : identifier ASSIGN identifier
    | identifier

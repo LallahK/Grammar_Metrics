@@ -27,20 +27,20 @@ public class Main {
             System.err.println("Invalid Grammar!");
             System.exit(0);
         }
-
         Analysis a = new Analysis(g);
+        TestGen t = new TestGen(g, a);
 
         boolean finish = false;
         Scanner scanner = new Scanner(System.in);
         while (!finish) {
             System.out.println("\nEnter analysis command:");
-            finish = command(a, g, scanner.nextLine());
+            finish = command(a, g, t, scanner.nextLine());
         }
 
         scanner.close();
     }
 
-    public static boolean command(Analysis a, Grammar g, String input) {
+    public static boolean command(Analysis a, Grammar g, TestGen t, String input) {
         if (input.equalsIgnoreCase("nullable")) {
             a.nullableSet();
             g.nullable();
@@ -70,8 +70,16 @@ public class Main {
             g.relDepth();
         } 
         if (input.equalsIgnoreCase("recursion")) {
+            System.out.println(g.nonTerminals.size());
             a.recursion();
             g.recursion();
+        } 
+        if (input.equalsIgnoreCase("metrics")) {
+            a.metrics();
+            g.metrics();
+        }
+        if (input.equalsIgnoreCase("gen")) {
+            t.testcaseGen();
         } 
         if (input.equalsIgnoreCase("help")) {
             System.out.println("Command list:");
@@ -83,6 +91,8 @@ public class Main {
             System.out.println("\tdepth - the length of the longest acyclic derivation of some word");
             System.out.println("\trecursion - print the left-recursive, right-recursive and indirectly recursive symbols");
             System.out.println("\tterminals - print the longest acyclic derviation needed to have the terminal occur in a word");
+            System.out.println("\tmetrics - print sundry metric information");
+            System.out.println("\tgen - generate testcases from grammar");
             System.out.println("\tprint - print the raw grammar");
             System.out.println("\thelp - display this message");
             System.out.println("\texit - close program");

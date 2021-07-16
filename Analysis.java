@@ -8,17 +8,58 @@ public class Analysis {
     
     public Analysis(Grammar grammar) {
         this.grammar = grammar;
+        this.strip();
+    }
 
-        // this.nullableSet();
-        // this.firstSet();
-        // this.followSet();
-        // this.alphabetSet();
-        // this.coreSet();
-        // this.recursion();
-        // this.depth();
-        // this.relDepth();
+    private void strip() {
+        int size = grammar.nonTerminals.size();
+        boolean[][] dists = new boolean[size][size];
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                dists[i][j] = false;
+            }
+        }
 
-        // this.grammar.setPrint(Set.FIRST);
+        for (Production p: grammar.productions) {
+            NonTerminal a = p.nt;
+            for (Symbol s: p.rules) {
+                if (s.getType() == 0) {
+                    NonTerminal b = (NonTerminal) s;
+                    dists[a.index][b.index] = true;
+                }
+            }
+        }
+
+        for (int k = 0; k < size; k++) {
+            for (int i = 0; i < size; i++) {
+                for (int j = 0; j < size; j++) {
+                    if (dists[i][k] && dists[k][j]) {
+                        dists[i][j] = true;
+                    }
+                }
+            }
+        }
+
+        NonTerminal nt;
+        boolean removed = false;
+
+        for (int i = 1; i < size; i++) {
+            if (dists[0][i]) continue;
+            
+            nt = grammar.nonTerminals.get(i);
+            for (Production p: nt.productions) {
+                grammar.productions.remove(p);
+            }
+            grammar.nonTerminals.remove(nt);
+            removed = true;
+        }
+
+        if (removed) {
+            for (int i = 0; i < grammar.nonTerminals.size(); i++) {
+                nt = grammar.nonTerminals.get(i);
+                nt.index = i;
+            }
+        }
     }
 
     public void nullableSet() {
@@ -230,7 +271,6 @@ public class Analysis {
                 for (int j = 0; j < size; j++) {
                     if (dists[i][k] && dists[k][j]) {
                         dists[i][j] = true;
-                        // System.out.println(i + "][" + j + " = " + (dists[i][k] + dists[k][j]));
                     }
                 }
             }
@@ -312,6 +352,31 @@ public class Analysis {
         }
 
         return n;
+    }
+
+    public void metrics() {
+        double avgLength = 0;
+        int extras = 0;
+        double ntCount = 0;
+        double tCount = 0;
+
+        for (Production p: grammar.productions) {
+            avgLength += p.rules.size();
+            for (Symbol s: p.rules) {
+                if (s.getType() == 0) ntCount += 1;
+                else tCount += 1;
+            }
+        }
+
+        grammar.productionLength = avgLength / grammar.productions.size();
+        grammar.terminalRatio = (grammar.terminals.size() * 1.0) / grammar.nonTerminals.size();
+        grammar.terminalUsageRatio = tCount / (tCount + ntCount);
+
+        for (NonTerminal nt: grammar.nonTerminals) {
+            extras += (nt.productions.size() - 1);
+        }
+
+        grammar.extraProductions = extras;
     }
 
 }

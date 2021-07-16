@@ -4,10 +4,11 @@ import java.lang.Character;
 import Antlr4.Term;
 
 enum Set {
+
     FIRST (0),
     FOLLOW (1),
     ALPHABET (2),
-    CORE (3),;
+    CORE (3);
 
     private final int value;
 
@@ -18,6 +19,7 @@ enum Set {
     public int getValue() {
         return value;
     }
+
 }
 
 class Grammar {
@@ -28,6 +30,10 @@ class Grammar {
     public NonTerminal first;
 
     public int depth;
+    public double productionLength;
+    public double terminalRatio;
+    public double terminalUsageRatio;
+    public int extraProductions;
 
     public Grammar() {
         productions = new ArrayList<Production>();
@@ -36,7 +42,7 @@ class Grammar {
     }
 
     public NonTerminal getNonTerminal(String t) {
-        NonTerminal nt = new NonTerminal(t, 0);
+        NonTerminal nt = new NonTerminal(t);
         int index = nonTerminals.indexOf(nt);
         if (index != -1) {
             return nonTerminals.get(index);
@@ -54,14 +60,17 @@ class Grammar {
     }
 
     public void addProduction(Production p) {
+        p.index = productions.size();
         productions.add(p);
     }
 
     public void addTerminal(Terminal t) {
+        t.index = terminals.size();
         terminals.add(t);
     }
 
     public void addNonTerminal(NonTerminal nt) {
+        nt.index = nonTerminals.size();
         nonTerminals.add(nt);
     }
 
@@ -86,6 +95,12 @@ class Grammar {
             if (p.nt == first) continue;
             System.out.println(p);
         }
+    }
+
+    public void metrics() {
+        System.out.println("Terminal Ratio: " + terminalRatio);
+        System.out.println("Productions Length: " + productionLength);
+        System.out.println("Extra Productions: " + extraProductions);
     }
 
     public void depth() {
@@ -142,6 +157,7 @@ class Production {
 
     public NonTerminal nt;
     public ArrayList<Symbol> rules;
+    public int index;
 
     public Production(NonTerminal nt) {
         this.nt = nt;
@@ -170,6 +186,8 @@ class Production {
 }
 
 class Symbol {
+    public ArrayList<Production> productions;
+    
     public int getType() { return 0; }
     public boolean isNullable() { return false; }
 
@@ -179,8 +197,9 @@ class Symbol {
 
 class NonTerminal extends Symbol {
 
-    public ArrayList<Production> productions;
     public int index;
+
+    private static int terms;
 
     private ArrayList<ArrayList<Symbol>> sets;
     public ArrayList<Terminal> follow;
@@ -192,9 +211,8 @@ class NonTerminal extends Symbol {
     public boolean rrecursive;
     public boolean recursive;
 
-    public NonTerminal(String literal, int index) {
+    public NonTerminal(String literal) {
         this.literal = literal;
-        this.index = index;
 
         this.productions = new ArrayList<Production>();
         this.nullable = false;
@@ -211,6 +229,10 @@ class NonTerminal extends Symbol {
         for (int i = 0; i < Set.values().length; i++) {
             this.sets.add(new ArrayList<Symbol>());
         }
+    }
+
+    public void addProduction(Production p) {
+        if (productions.indexOf(p) == -1) this.productions.add(p);
     }
 
     public ArrayList<Symbol> getSet(Set set) {
@@ -250,10 +272,6 @@ class NonTerminal extends Symbol {
         return change;
     }
 
-    public void addProduction(Production p) {
-        this.productions.add(p);
-    }
-
     @Override
     public boolean isNullable() {
         return nullable;
@@ -275,19 +293,23 @@ class NonTerminal extends Symbol {
         return t.literal.equals(literal);
     }
 
+    public static NonTerminal newNT() {
+        NonTerminal nt = new NonTerminal("NonTerminal" + terms);
+        terms++;
+        return nt;
+    }
+
 }
 
 class Terminal extends Symbol {
 
-    public ArrayList<Production> productions;
     public int index;
     public int depth;
 
     private static int terms;
     public String print;
 
-    public Terminal(String literal, int index) {
-        this.index = index;
+    public Terminal(String literal) {
         this.productions = new ArrayList<Production>();
         this.depth = 0;
         int len = literal.length();
@@ -312,6 +334,12 @@ class Terminal extends Symbol {
         this.literal = literal;
     }
 
+    public static Terminal newT() {
+        Terminal t = new Terminal("new");
+        t.literal = t.print;
+        return t;
+    }
+
     @Override
     public int getType() {
         return 1;
@@ -319,17 +347,17 @@ class Terminal extends Symbol {
 
     @Override
     public String toString() {
-        return literal;
-    }
-
-    public void addProduction(Production p) {
-        if (productions.indexOf(p) == -1) this.productions.add(p);
+        return print;
     }
 
     @Override
     public boolean equals(Object obj) {
         Terminal t = (Terminal) obj;
         return t.literal.equals(literal);
+    }
+
+    public void addProduction(Production p) {
+        if (productions.indexOf(p) == -1) this.productions.add(p);
     }
 
 }
