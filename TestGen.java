@@ -1,3 +1,5 @@
+import java.io.File;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.Scanner;
@@ -7,6 +9,7 @@ public class TestGen {
     private Grammar grammar;
     private Analysis analysis;
     private ArrayList<Operation> operations;
+    private String fileName;
 
     private int majority;
     private double usageRatio;
@@ -28,7 +31,7 @@ public class TestGen {
         Scanner scanner = new Scanner(System.in);
 
         System.out.println("\nEnter file name:");
-        String file = scanner.nextLine();
+        fileName = scanner.nextLine();
         System.out.println("Enter majority operation:");
         String line = scanner.nextLine();
 
@@ -41,7 +44,33 @@ public class TestGen {
             return;
         }
 
-        System.out.println("\n" + file + ".cfg: " + majority);
+        analysis.metrics();
+        ratio = grammar.terminalRatio;
+        proLen = grammar.productionLength;
+        extraPro = grammar.extraProductions;
+        usageRatio = grammar.terminalUsageRatio;
+
+        generate(10);
+    }
+
+    public void testcaseGen(String fileName, String majority) {
+        int pos = fileName.lastIndexOf(".");
+        if (pos > 0) {
+            this.fileName = fileName.substring(0, pos);
+        } else this.fileName = fileName;
+
+        initGen(majority);
+    }
+
+    public void initGen(String line) {
+        if (line.equals("all")) majority = 0;
+        else if (line.equals("insert")) majority = 1;
+        else if (line.equals("edit")) majority = 2;
+        else if (line.equals("remove")) majority = 3;
+        else {
+            System.out.println("\nERROR: Select operation: all | insert | edit | remove");
+            return;
+        }
 
         analysis.metrics();
         ratio = grammar.terminalRatio;
@@ -49,10 +78,47 @@ public class TestGen {
         extraPro = grammar.extraProductions;
         usageRatio = grammar.terminalUsageRatio;
 
-        generate();
+        String[] folders = new String[] { "XSmall", "Small", "Medium", "Large", "XLarge" };
+
+        int count = 10;
+        String g = grammar.toString();
+
+        for (int i = 0; i < 5; i++) {
+            count += 10 * ((int) Math.pow(2, i - 2));
+            generate(count);
+            write(line, folders[i], g);
+        }
+
+        validGrammar();
+    } 
+
+    private void write(String majority, String folder, String g) {
+        try {
+            File f = new File(new File("TestCases"), majority);
+            f.mkdir();
+            
+            f = new File(f, folder);
+            f.mkdir();
+
+            f = new File(f, fileName + ".cfg");
+            f.createNewFile();
+
+            FileWriter fw = new FileWriter(f);
+
+            fw.write(g + "\n");
+            fw.write(operations.size() + "\n");
+            for (Operation op: operations) {
+                fw.write(op.toString() + "\n");
+            }
+
+            fw.close();
+        } catch (Exception e) {
+            System.out.println("Could not write to " + folder + "/" + fileName + ".cfg");
+            System.out.println(e);
+        }
     }
 
-    private void generate() {
+    private void generate(int count) {
         double[] ratios = new double[] {1, 1, 1};
         int sum = 3;
 
@@ -64,7 +130,7 @@ public class TestGen {
 
         reachable();
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < count; i++) {
             analysis.metrics();
 
             int choice = roulette(ratios);
@@ -79,8 +145,6 @@ public class TestGen {
                     break;
             }
         }
-
-        // for (Operation op: operations) System.out.println(op);
     }
 
     private void genInsert() {
@@ -137,6 +201,7 @@ public class TestGen {
     private void insertNew() {
         NonTerminal nt = NonTerminal.newNT();
         NonTerminal n = nextNT();
+        grammar.addNonTerminal(nt);
 
         Production p = newProductionNTandT(nt, 0, null);
         operations.add(new Operation(p));
@@ -149,70 +214,129 @@ public class TestGen {
     private void genEdit() {
         double choice = random.nextDouble();
 
-        if (choice < 1) {
+        if (choice < 0.15) {
             analysis.recursion();
             editUnRecursion();
-        } else if (choice < 0.25) {
+        } else if (choice < 0.3) {
             editRecursion();
-        } else if (choice < 0.7) {
-            editSemi();
-        } else if (choice < 0.85) {
-            editFull();
+        } else if (choice < 0.75) {
+            editSemi((int) (proLen / 3));
         } else {
-            editEmpty();
+            editSemi(0);
         }
     }
 
     private void editUnRecursion() {
-        boolean left = false;
         ArrayList<NonTerminal> recursive = new ArrayList<>();
         for (NonTerminal nt: grammar.nonTerminals) {
             if (nt.rrecursive || nt.lrecursive) recursive.add(nt);
         } 
 
-        if (recursive.size() == 0) return;
+        if (recursive.size() <= 0) return;
 
         int index = random.nextInt(recursive.size());
         NonTerminal nt = recursive.get(index);
 
         Production rec = null;
+        Symbol s = null;
         for (Production p: nt.productions) {
             if (p.rules.size() == 0) continue;
 
-            Symbol s = p.rules.get(0);
-            if (s.getType() == 0) {
-                if (s.equals(nt)) rec = p;
-                left = true;
-            }
-            s = p.rules.get(p.rules.size() - 1);
+            if (nt.lrecursive) s = p.rules.get(0); 
+            else s = p.rules.get(p.rules.size() - 1);
+            
             if (s.getType() == 0) if (s.equals(nt)) rec = p;
         }
 
-        if (left) {
-
-        } else {
-            
+        if (nt.lrecursive) {
+            rec.rules.remove(0);
         }
+        else {
+            rec.rules.remove(rec.rules.size() - 1);
+        }
+
+        operations.add(new Operation(rec.index + 1, rec));
     }
 
     private void editRecursion() {
+        ArrayList<NonTerminal> recursive = new ArrayList<>();
+        for (NonTerminal nt: grammar.nonTerminals) {
+            if (!nt.rrecursive && !nt.lrecursive) recursive.add(nt);
+        } 
 
+        if (recursive.size() <= 0) return;
+
+        int index = random.nextInt(recursive.size());
+        NonTerminal nt = recursive.get(index);
+        index = random.nextInt(nt.productions.size());
+        Production p = nt.productions.get(index);
+
+        if (random.nextDouble() < 0.5) p.addRule(nt);
+        else {
+            nt.addDependency(nt);
+            p.rules.add(0, nt);
+        }
+
+        operations.add(new Operation(p.index + 1, p));
     }
 
-    private void editSemi() {
+    private void editSemi(int effect) {
+        int index = random.nextInt(grammar.productions.size());
+        Production p = grammar.productions.get(index);
 
-    }
+        ArrayList<Integer> candidates = new ArrayList<>();
+        for (int i = 0; i < p.rules.size(); i++) {
+            Symbol s = p.rules.get(i);
+            if (s.getType() == 0) {
+                NonTerminal nt = (NonTerminal) s;
+                if (nt.dependency.size() > 1 && !(nt.lrecursive || nt.rrecursive)) candidates.add(i);
+            } else {
+                candidates.add(i);
+            }
+        }
 
-    private void editFull() {
-        
-    }
+        boolean edited = false;
 
-    private void editEmpty() {
+        if (candidates.size() != 0) {
+            int size = candidates.size();
+            double[] ratios = new double[size];
+            ArrayList<Integer> indices = new ArrayList<>();
 
-    }
+            for (int i = 0; i < size; i++) ratios[i] = (1.0 / size);
 
-    private void addProductionRule(Production p, NonTerminal n) {
+            while (continueBuild(indices.size() + effect)) {
+                indices.add(roulette(ratios));
+            }
 
+            for (Integer indice: indices) {
+                index = candidates.get(indice.intValue());
+                Symbol n = nextSymbol();
+
+                if (n.getType() == 0) {
+                    NonTerminal nt  = (NonTerminal) n;
+                    nt.addDependency(p.nt);
+                }
+
+                n = p.rules.set(index, n);
+            
+                if (n.getType() == 0) {
+                    NonTerminal nt  = (NonTerminal) n;
+                    nt.removeDependency(p.nt);
+                }
+
+                edited = true;
+            }
+        }
+
+        if (!edited) {
+            index = random.nextInt(p.rules.size() + 1);
+            Symbol s = nextSymbol();
+            if (s.getType() == 0) ((NonTerminal) s).addDependency(p.nt);
+            if (p.rules.size() == index) p.rules.add(s);
+            else p.rules.add(index, s);
+        }
+
+        operations.add(new Operation(p.index + 1, p));
     }
 
     private void genRemove() {
@@ -237,6 +361,7 @@ public class TestGen {
         ArrayList<Production> delete = new ArrayList<>();
 
         for (NonTerminal nt: grammar.nonTerminals) {
+            if (nt.equals(grammar.first)) continue;
             if (nt.productions.size() > 1) {
                 for (Production p: nt.productions) candidates.add(p);
             }
@@ -251,7 +376,7 @@ public class TestGen {
             }
 
             p.nt.productions.add(p);
-            grammar.addProductionDep(p);
+            grammar.addProductionDep(p.index, p);
         }
 
         if (delete.size() <= 0) return;
@@ -260,13 +385,6 @@ public class TestGen {
         Production d = delete.get(index);
 
         deleteProduction(d);
-
-        reachable = reachable();
-        for (int i = 1; i < size; i++) {
-            if (!reachable[0][i]) {
-                System.out.println("FOK");
-            }
-        }
 
         operations.add(new Operation(d.index + 1));
     }
@@ -278,6 +396,18 @@ public class TestGen {
             if (s.getType() == 1) {
                 Terminal t = (Terminal) s;
                 t.productions.remove(p);
+            } else {
+                NonTerminal nt = (NonTerminal) s;
+                nt.removeDependency(p.nt);
+            }
+        }
+
+        for (Production pr: p.nt.productions) {
+            for (Symbol s: pr.rules) {
+                if (s.getType() == 0) {
+                    NonTerminal nt = (NonTerminal) s;
+                    nt.addDependency(p.nt);
+                }
             }
         }
 
@@ -290,6 +420,7 @@ public class TestGen {
             for (int i = 0; i < grammar.nonTerminals.size(); i++) {
                 grammar.nonTerminals.get(i).index = i;
             }
+
         }
     }
 
@@ -505,13 +636,14 @@ public class TestGen {
 
     private NonTerminal nextNT() {
         int bound = grammar.nonTerminals.size() - 1;
+        if (bound == 0) return grammar.first;
+
         int index = random.nextInt(bound);
         return grammar.nonTerminals.get(index);
     }
 
     private Terminal nextT() {
         if (random.nextDouble() < 0.3) {
-            int n = grammar.terminals.size();
             Terminal t = Terminal.newT();
             grammar.addTerminal(t);
             return t;
@@ -533,6 +665,19 @@ public class TestGen {
     private boolean continueBuild(int index) {
         double f = Math.exp(-1 * (1 / proLen) * index);
         return random.nextDouble() < f;
+    }
+
+    private boolean validGrammar() {
+        boolean[][] reachable = reachable();
+        int size = grammar.nonTerminals.size();
+
+        for (int i = 1; i < size; i++) {
+            if (!reachable[0][i] || !reachable[size - 1][i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
 }

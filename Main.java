@@ -11,17 +11,22 @@ import JavaCC.JavaCCParser;
 
 public class Main {
     public static void main(String[] args) {
-        if (args.length != 1) {
+        if (args.length != 1 ) {
             System.out.println("Usage: java Main <file>");
             System.exit(0);
         }
 
         Grammar g = null;
 
+        if (args[0].equals("genall")) {
+            genAllCFGs();
+            System.exit(1);
+        }
+
         String extension = getFileExtension(args[0]);
-        if (extension.equals("g4")) g = runAntlr("Input/" + args[0]);
-        if (extension.equals("cup")) g = runCup("Input/" + args[0]);
-        if (extension.equals("jj")) g = runJavaCC("Input/" + args[0]);
+        if (extension.equals("g4")) g = runAntlr(args[0]);
+        if (extension.equals("cup")) g = runCup(args[0]);
+        if (extension.equals("jj")) g = runJavaCC(args[0]);
 
         if (g == null) {
             System.err.println("Invalid Grammar!");
@@ -155,4 +160,43 @@ public class Main {
         int dotIndex = fileName.lastIndexOf('.');
         return (dotIndex == -1) ? "" : fileName.substring(dotIndex + 1);
     }
+
+    public static void genAllCFGs() {
+        genGrammarCFGs("Antlr");
+        genGrammarCFGs("Cup");
+        genGrammarCFGs("JavaCC");
+    }
+
+    public static void genGrammarCFGs(String grammarString) {
+        File f = new File(grammarString + "Grammars");
+        String[] ops = new String[] { "all", "insert", "remove", "edit" };
+
+        Grammar g;
+        for (String file: f.list()) {
+            String fileName = grammarString + "Grammars/" + file;
+            g = null;
+
+            System.out.println("Generating grammars and operations for: " + fileName);
+
+            String extension = getFileExtension(fileName);
+            if (extension.equals("g4")) g = runAntlr(fileName);
+            if (extension.equals("cup")) g = runCup(fileName);
+            if (extension.equals("jj")) g = runJavaCC(fileName);
+    
+            if (g == null) {
+                System.err.println("Invalid Grammar!");
+                System.exit(0);
+            }
+
+            for (String majority: ops) {
+                Grammar c = g.copyGrammar();
+                Analysis a = new Analysis(c);
+                TestGen t = new TestGen(c, a);
+
+                t.testcaseGen(file, majority);
+            }
+            System.out.println("Done\n");
+        }
+    }
+
 }

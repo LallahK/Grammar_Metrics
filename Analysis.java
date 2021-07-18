@@ -22,8 +22,6 @@ public class Analysis {
 
         visit(grammar.first, visited);
 
-        System.out.println();
-
         for (int i = 1; i < size; i++) {
             if (!visited[i]) {
                 nt = grammar.nonTerminals.get(i - count);
@@ -268,6 +266,12 @@ public class Analysis {
             }
         }
 
+        for (NonTerminal nt: grammar.nonTerminals) {
+            nt.lrecursive = false;
+            nt.rrecursive = false;
+            nt.recursive = false;
+        }
+
         for (Production p: grammar.productions) {
             NonTerminal a = p.nt;
             for (Symbol s: p.rules) {
@@ -283,13 +287,13 @@ public class Analysis {
             Symbol start = p.rules.get(0);
             if (start.getType() == 0) {
                 NonTerminal nt = (NonTerminal) start;
-                if (nt == a) a.lrecursive = true;
+                if (nt.equals(a)) a.lrecursive = true;
             }
 
             Symbol end = p.rules.get(len - 1);
             if (end.getType() == 0) {
                 NonTerminal nt = (NonTerminal) end;
-                if (nt == a) a.rrecursive = true;
+                if (nt.equals(a)) a.rrecursive = true;
             }
         }
 

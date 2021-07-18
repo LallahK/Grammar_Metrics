@@ -82,16 +82,19 @@ class AntlrConverter extends Converter {
         }
 
         if (option > 0) {
-            convertNewTerm(p, term, term.literal.toLowerCase(), option);
+            convertNewTerm(p, term, term.print.toLowerCase(), option);
         } else {
             p.addRule(term);
-            term.addProduction(p);
         }
     }
 
     public void convertNonTerminal(Production p, String t, int option) {
         String literal = t;
-        NonTerminal term = grammar.getNonTerminal(literal);  
+        NonTerminal term = grammar.getNonTerminal(literal);
+        if (term == null) {
+            convertTerminal(p, t, option);
+            return;
+        }
         
         if (option > 0) {
             convertNewTerm(p, term, literal, option);

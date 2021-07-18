@@ -40,6 +40,26 @@ class Grammar {
         terminals = new ArrayList<Terminal>();
         nonTerminals = new ArrayList<NonTerminal>();
     }
+    
+    public Grammar copyGrammar() {
+        Grammar copy = new Grammar();
+        
+        for (NonTerminal nt: nonTerminals) {
+            copy.addNonTerminal(nt.copy());
+        }
+
+        for (Terminal t: terminals) {
+            copy.addTerminal(t.copy());
+        }
+
+        for (Production p: productions) {
+            copy.addProduction(p.copy(copy));
+        }
+
+        copy.first = copy.getNonTerminal(first.literal);
+
+        return copy;
+    }
 
     public NonTerminal getNonTerminal(String t) {
         NonTerminal nt = new NonTerminal(t);
@@ -75,14 +95,14 @@ class Grammar {
         this.productions.remove(p);
     }
 
-    public void addProductionDep(Production p) {
+    public void addProductionDep(int index, Production p) {
         for (Symbol s: p.rules) {
             if (s.getType() == 0) {
                 NonTerminal nt = (NonTerminal) s;
                 nt.addDependency(p.nt);
             }
         }
-        this.productions.add(p);
+        this.productions.add(index, p);
     }
 
     public void addTerminal(Terminal t) {
@@ -95,30 +115,10 @@ class Grammar {
         nonTerminals.add(nt);
     }
 
-    public void printGrammar() {
-        System.out.print("Non-terminals = " + nonTerminals.get(0));
-        for (int i = 1; i < nonTerminals.size(); i++) {
-            System.out.print(", " + nonTerminals.get(i));
-        }
-        System.out.println();
-
-        System.out.print("Terminals = " + terminals.get(0));
-        for (int i = 1; i < terminals.size(); i++) {
-            System.out.print(", " + terminals.get(i));
-        }
-        System.out.println();
-
-        System.out.println(productions.size());
-        for (Production p: first.productions) {
-            System.out.println(p);
-        }
-        for (Production p: productions) {
-            if (p.nt == first) continue;
-            System.out.println(p);
-        }
-    }
-
     public void metrics() {
+        System.out.println("Non-Terminals: " + nonTerminals.size());
+        System.out.println("Terminals: " + terminals.size());
+        System.out.println("Productions: " + productions.size());
         System.out.println("Terminal Ratio: " + terminalRatio);
         System.out.println("Productions Length: " + productionLength);
         System.out.println("Extra Productions: " + extraProductions);
@@ -172,6 +172,35 @@ class Grammar {
             System.out.println();
         }
     }
+
+    public void printGrammar() {
+        System.out.println(this);
+    }
+
+    @Override
+    public String toString() {
+        String s = "Non-terminals = " + nonTerminals.get(0);
+        for (int i = 1; i < nonTerminals.size(); i++) {
+            s += ", " + nonTerminals.get(i);
+        }
+        s += "\n";
+
+        s += "Terminals = " + terminals.get(0);
+        for (int i = 1; i < terminals.size(); i++) {
+            s += ", " + terminals.get(i);
+        }
+        s += "\n";
+
+        s += productions.size() + "\n";
+        for (Production p: first.productions) {
+            s += p + "\n";
+        }
+        for (Production p: productions) {
+            if (p.nt == first) continue;
+            s += p + "\n";
+        }
+        return s;
+    }
 }
 
 class Production {
@@ -186,10 +215,28 @@ class Production {
         nt.addProduction(this);
     }
 
+    public Production copy(Grammar g) {
+        Production p = new Production(g.getNonTerminal(nt.literal));
+        for (Symbol s: rules) {
+            if (s.getType() == 0) {
+                NonTerminal nt = g.getNonTerminal(((NonTerminal) s).literal);
+                p.addRule(nt);
+            } else {
+                Terminal t = g.getTerminal(((Terminal) s).literal);
+                p.addRule(t);
+            }
+        }
+
+        return p;
+    }
+
     public void addRule(Symbol t) {
         if (t.getType() == 0) {
             NonTerminal n = (NonTerminal) t;
             n.addDependency(nt);
+        } else {
+            Terminal e = (Terminal) t;
+            e.addProduction(this);
         }
         rules.add(t);
     }
@@ -217,7 +264,6 @@ class Symbol {
     public boolean isNullable() { return false; }
 
     public String literal;
-    public int groups = 0;
 }
 
 class NonTerminal extends Symbol {
@@ -225,6 +271,7 @@ class NonTerminal extends Symbol {
     public int index;
 
     private static int terms;
+    public int groups;
 
     public ArrayList<NonTerminal> dependency;
     public boolean derivable = false;
@@ -242,6 +289,7 @@ class NonTerminal extends Symbol {
 
     public NonTerminal(String literal) {
         this.literal = literal;
+        this.groups = 0;
 
         this.dependency = new ArrayList<>();
 
@@ -262,11 +310,22 @@ class NonTerminal extends Symbol {
         }
     }
 
+    public NonTerminal copy() {
+        NonTerminal nt = new NonTerminal(literal);
+
+        return nt;
+    }
+
     public void addDependency(NonTerminal nt) {
         if (dependency.indexOf(nt) == -1) this.dependency.add(nt);
     }
 
     public void removeDependency(NonTerminal nt) {
+        for (Production p: nt.productions) {
+            for (Symbol s: p.rules) {
+                if (s.getType() == 0) if (s.equals(nt)) return;
+            }
+        }
         this.dependency.remove(nt);
     }
 
@@ -355,7 +414,7 @@ class Terminal extends Symbol {
 
         if (literal.substring(0, 1).equals("\'") &&
             literal.substring(len - 1, len).equals("\'")) {
-            
+
             boolean word = true;
             for (int i = 1; i < len - 1; i++) {
                 if (!Character.isLetter(literal.charAt(i))) word = false;
@@ -373,8 +432,18 @@ class Terminal extends Symbol {
         this.literal = literal;
     }
 
+    public void reset() { terms = 0; }
+
+    public Terminal copy() {
+        Terminal t = new Terminal(literal);
+        t.print = print;
+
+        return t;
+    }
+
     public static Terminal newT() {
-        Terminal t = new Terminal("new");
+        Terminal t = new Terminal("TERM" + terms);
+        terms++;
         t.literal = t.print;
         return t;
     }
